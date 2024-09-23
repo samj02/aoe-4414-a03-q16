@@ -22,7 +22,7 @@ import math
 import sys
 
 # Constants
-R_E_KM = 6378.137
+R_E_KM = 6378.1363
 E_E = 0.081819221456
 
 
