@@ -16,63 +16,14 @@
 # Written by Samuel Jacobson
 # Other contributors:
 #
-# This work is licensed under CC BY-SA 4.0
+#
 # import Python modules
 import math
 import sys
 
 # Constants
-R_E_KM = 6378.137  # Earth's equatorial radius in km
-E_E = 0.081819221456  # Earth's eccentricity
-
-
-# Helper function to convert degrees to radians
-def deg_to_rad(deg):
-    return deg * math.pi / 180.0
-
-
-# Helper function to calculate the ECEF coordinates of the observer
-def geodetic_to_ecef(lat_deg, lon_deg, hae_km):
-    lat_rad = deg_to_rad(lat_deg)
-    lon_rad = deg_to_rad(lon_deg)
-
-    # Calculate N, the prime vertical radius of curvature
-    N = R_E_KM / math.sqrt(1 - (E_E ** 2) * (math.sin(lat_rad) ** 2))
-
-    # Calculate ECEF coordinates for the observer
-    x = (N + hae_km) * math.cos(lat_rad) * math.cos(lon_rad)
-    y = (N + hae_km) * math.cos(lat_rad) * math.sin(lon_rad)
-    z = (N * (1 - E_E ** 2) + hae_km) * math.sin(lat_rad)
-
-    return x, y, z
-
-
-# SEZ to ECEF conversion
-def sez_to_ecef(o_lat_deg, o_lon_deg, o_hae_km, s_km, e_km, z_km):
-    # Convert observer's position to ECEF
-    obs_x_ecef, obs_y_ecef, obs_z_ecef = geodetic_to_ecef(o_lat_deg, o_lon_deg, o_hae_km)
-
-    # Convert observer's lat/lon to radians
-    lat_rad = deg_to_rad(o_lat_deg)
-    lon_rad = deg_to_rad(o_lon_deg)
-
-    # SEZ to ECEF rotation matrix components
-    sin_lat = math.sin(lat_rad)
-    cos_lat = math.cos(lat_rad)
-    sin_lon = math.sin(lon_rad)
-    cos_lon = math.cos(lon_rad)
-
-    # Apply SEZ to ECEF transformation
-    ecef_x_km = (-sin_lon * s_km) + (cos_lon * e_km)
-    ecef_y_km = (-sin_lat * cos_lon * s_km) + (-sin_lat * sin_lon * e_km) + (cos_lat * z_km)
-    ecef_z_km = (cos_lat * cos_lon * s_km) + (cos_lat * sin_lon * e_km) + (sin_lat * z_km)
-
-    # Add observer's ECEF coordinates to the transformed SEZ coordinates
-    ecef_x_km += obs_x_ecef
-    ecef_y_km += obs_y_ecef
-    ecef_z_km += obs_z_ecef
-
-    return ecef_x_km, ecef_y_km, ecef_z_km
+R_E_KM = 6378.137
+E_E = 0.081819221456
 
 
 # Parse script arguments
@@ -84,11 +35,50 @@ if len(sys.argv) == 7:
     e_km = float(sys.argv[5])
     z_km = float(sys.argv[6])
 else:
-    print('Usage: \npython3 sez_to_ecef.py o_lat_deg o_lon_deg o_hae_km s_km e_km z_km')
+    print('Usage: python3 sez_to_ecef.py o_lat_deg o_lon_deg o_hae_km s_km e_km z_km')
     exit()
 
 # Perform SEZ to ECEF conversion
-ecef_x_km, ecef_y_km, ecef_z_km = sez_to_ecef(o_lat_deg, o_lon_deg, o_hae_km, s_km, e_km, z_km)
+# SEZ to ECEF conversion
+
+# Convert observer's lat/lon to radians
+lat_rad = o_lat_deg * math.pi / 180.0
+lon_rad = o_lon_deg * math.pi / 180.0
+
+# Trig to keep things clean
+sin_lat = math.sin(lat_rad)
+cos_lat = math.cos(lat_rad)
+sin_lon = math.sin(lon_rad)
+cos_lon = math.cos(lon_rad)
+
+#  Transformation matrix
+
+ecef_x_km = (cos_lon * sin_lat * s_km) + (cos_lon * cos_lat * z_km) - (sin_lon * e_km)
+ecef_y_km = (sin_lon * sin_lat * s_km) + (sin_lon * cos_lat * z_km) + (cos_lon * e_km)
+ecef_z_km =  - (cos_lat * s_km) + (sin_lat * z_km)
+
+# Add the ECEF vector to the SEZ origin
+
+lat_rad = o_lat_deg * math.pi / 180.0
+lon_rad = o_lon_deg * math.pi / 180.0
+
+# Calculate N, the prime vertical radius of curvature
+def calc_denom(ecc, lat_rad):
+    return math.sqrt(1.0 - (ecc ** 2) * (math.sin(lat_rad) ** 2))
+
+denom = calc_denom(E_E, lat_rad)
+c_E = R_E_KM / denom
+
+# Calculate ECEF coordinates for the observer
+obs_x_ecef = (c_E + o_hae_km) * cos_lat * cos_lon
+obs_y_ecef = (c_E + o_hae_km) * cos_lat * sin_lon
+obs_z_ecef = (c_E * (1 - E_E ** 2) + o_hae_km) * sin_lat
+
+#Add observer's ECEF coordinates to the transformed SEZ coordinates
+ecef_x_km += obs_x_ecef
+ecef_y_km += obs_y_ecef
+ecef_z_km += obs_z_ecef
+
 
 # Print results
 print(ecef_x_km)
